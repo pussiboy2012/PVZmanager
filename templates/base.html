@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>PVZ Manager — Современный интерфейс</title>
+    <!-- Bootstrap 5 CSS (core) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 (free icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Кастомные стили (если нужны переопределения) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* ----- ROOT переменные: строгая, современная палитра ----- */
+        :root {
+            --sidebar-width: 280px;
+            --sidebar-bg: #ffffff;
+            --sidebar-border: 1px solid rgba(0, 0, 0, 0.05);
+            --sidebar-text: #1a2c3e;
+            --sidebar-icon: #5b6e8c;
+            --sidebar-active-bg: linear-gradient(95deg, rgba(13,110,253,0.08) 0%, rgba(13,110,253,0.02) 100%);
+            --sidebar-active-border: #0d6efd;
+            --sidebar-hover-bg: #f8fafc;
+            --main-bg: #f4f7fc;
+            --card-radius: 20px;
+            --shadow-sm: 0 8px 20px rgba(0,0,0,0.02), 0 2px 6px rgba(0,0,0,0.03);
+            --shadow-md: 0 12px 28px rgba(0,0,0,0.04), 0 0 1px rgba(0,0,0,0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--main-bg);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            overflow-x: hidden;
+            color: #1a2c3e;
+        }
+
+        /* Применяем интерфейсный шрифт */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+
+        /* ----- ОСНОВНОЙ LAYOUT (flex) ----- */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* ========== САЙДБАР (строгий, современный) ========== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(0px);
+            border-right: var(--sidebar-border);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            position: relative;
+            z-index: 1050;
+            box-shadow: var(--shadow-sm);
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+
+        /* Кастомный скролл для сайдбара */
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: #eef2f6;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 6px;
+        }
+
+        /* Бренд / заголовок */
+        .sidebar-brand {
+            padding: 28px 24px 20px 28px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            margin-bottom: 20px;
+        }
+        .sidebar-brand a {
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 1.55rem;
+            letter-spacing: -0.3px;
+            color: #0b2b3b;
+            transition: all 0.2s;
+        }
+        .sidebar-brand i {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .sidebar-brand span {
+            background: linear-gradient(135deg, #1a2c3e, #2c3e50);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        /* Навигационное меню (строгие табы) */
+        .sidebar-nav {
+            flex: 1;
+            padding: 0 14px 20px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .nav-item-custom {
+            list-style: none;
+        }
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            color: var(--sidebar-text);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            letter-spacing: -0.2px;
+            background: transparent;
+            border: none;
+            width: 100%;
+        }
+        .sidebar-link i {
+            width: 24px;
+            font-size: 1.25rem;
+            text-align: center;
+            color: var(--sidebar-icon);
+            transition: color 0.2s;
+        }
+        .sidebar-link span {
+            flex: 1;
+        }
+        /* Hover эффект — строгий, но с откликом */
+        .sidebar-link:hover {
+            background: var(--sidebar-hover-bg);
+            color: #0d6efd;
+            transform: translateX(2px);
+        }
+        .sidebar-link:hover i {
+            color: #0d6efd;
+        }
+        /* Активный пункт (современная индикация) */
+        .sidebar-link.active {
+            background: var(--sidebar-active-bg);
+            color: #0d6efd;
+            font-weight: 600;
+            border-left: 3px solid var(--sidebar-active-border);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .sidebar-link.active i {
+            color: #0d6efd;
+        }
+
+        /* разделитель */
+        .nav-divider {
+            height: 1px;
+            background: rgba(0,0,0,0.06);
+            margin: 16px 12px;
+        }
+
+        /* кнопка выхода — внизу */
+        .logout-wrapper {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid rgba(0,0,0,0.04);
+        }
+
+        /* ========== ОСНОВНОЙ КОНТЕНТ ========== */
+        .main-content {
+            flex: 1;
+            background: var(--main-bg);
+            overflow-x: auto;
+            padding: 28px 32px;
+            transition: padding 0.2s;
+        }
+
+        /* мобильный хедер (только для гамбургера, на десктопе скрыт) */
+        .mobile-header {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: white;
+            padding: 14px 20px;
+            border-bottom: 1px solid #eef2f6;
+            margin-bottom: 20px;
+            border-radius: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            color: #1e3a5f;
+            cursor: pointer;
+            width: 44px;
+            height: 44px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .menu-toggle:hover {
+            background: #f0f4f9;
+        }
+        .mobile-brand {
+            font-weight: 700;
+            font-size: 1.35rem;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #1a2c3e, #2c3e50);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        /* затемнение (оверлей) для мобильного сайдбара */
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(2px);
+            z-index: 1040;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s;
+        }
+        /* флеш сообщения */
+        .flashes {
+            list-style: none;
+            margin-bottom: 28px;
+            padding: 0;
+        }
+        .flashes li {
+            background: white;
+            border-left: 4px solid #0d6efd;
+            padding: 14px 20px;
+            border-radius: 18px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-sm);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(2px);
+        }
+
+        /* ========== АДАПТИВ (МОБИЛЬНАЯ ВЕРСИЯ) ========== */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -280px;
+                top: 0;
+                height: 100vh;
+                z-index: 1060;
+                box-shadow: 5px 0 25px rgba(0,0,0,0.1);
+                transition: left 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            }
+            .sidebar.open {
+                left: 0;
+            }
+            .mobile-header {
+                display: flex;
+            }
+            .main-content {
+                padding: 20px 18px;
+                width: 100%;
+            }
+            .app-layout {
+                flex-direction: column;
+            }
+            .sidebar-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+
+        /* улучшения для планшетов и десктопа */
+        @media (min-width: 769px) {
+            .menu-toggle {
+                display: none;
+            }
+            .sidebar-overlay {
+                display: none;
+            }
+            .mobile-header {
+                display: none;
+            }
+        }
+
+        /* дополнительные утилиты */
+        .content-card {
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: var(--shadow-md);
+            padding: 20px 24px;
+            transition: all 0.2s;
+        }
+        /* стили для таблиц, кастом */
+        .table-custom {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        footer {
+            font-size: 0.75rem;
+            text-align: center;
+            margin-top: 2rem;
+            color: #6c7a8e;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- оверлей для мобильного меню -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- СТРОГИЙ СОВРЕМЕННЫЙ ЛЕВЫЙ ТАБ (sidebar) -->
+        <aside class="sidebar" id="mainSidebar">
+            <div class="sidebar-brand">
+                <a href="{{ url_for('dashboard') }}">
+                    <i class="fas fa-box-open"></i>
+                    <span>PVZ Manager</span>
+                </a>
+            </div>
+            <div class="sidebar-nav">
+                <!-- Dashboard -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('dashboard') }}" data-nav="dashboard">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Панель управления</span>
+                    </a>
+                </div>
+                <!-- Доходы -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('income_calendar') }}" data-nav="income">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Доходы</span>
+                    </a>
+                </div>
+                <!-- Сотрудники -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('employees_page') }}" data-nav="employees">
+                        <i class="fas fa-users"></i>
+                        <span>Сотрудники</span>
+                    </a>
+                </div>
+                <!-- Смены (календарь) -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('calendar_view') }}" data-nav="shifts">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Календарь смен</span>
+                    </a>
+                </div>
+                <!-- Расходы -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('expenses_page') }}" data-nav="expenses">
+                        <i class="fas fa-credit-card"></i>
+                        <span>Расходы</span>
+                    </a>
+                </div>
+
+                <div class="nav-divider"></div>
+
+                <!-- Загрузка доходов YA -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('upload_income') }}" data-nav="upload_ya">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span>Доход YA</span>
+                    </a>
+                </div>
+                <!-- Загрузка доходов WB -->
+                <div class="nav-item-custom">
+                    <a class="sidebar-link" href="{{ url_for('upload_wb') }}" data-nav="upload_wb">
+                        <i class="fas fa-upload"></i>
+                        <span>Доход WB</span>
+                    </a>
+                </div>
+
+                <!-- Раздел выхода внизу -->
+                <div class="logout-wrapper">
+                    <div class="nav-item-custom">
+                        <a class="sidebar-link" href="{{ url_for('logout') }}" data-nav="logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Выйти из системы</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Мобильный хедер с гамбургером (виден только на малых экранах) -->
+            <div class="mobile-header">
+                <button class="menu-toggle" id="mobileMenuToggle" aria-label="Открыть меню">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="mobile-brand">
+                    <i class="fas fa-box"></i> PVZ Manager
+                </div>
+                <div style="width: 44px;"></div> <!-- пустой элемент для баланса -->
+            </div>
+
+            <!-- Блок флэш сообщений (сохраняем оригинальный стиль) -->
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <ul class="flashes">
+                        {% for message in messages %}
+                            <li><i class="fas fa-check-circle me-2" style="color:#0d6efd;"></i>{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Динамический контент страницы -->
+            {% block content %}{% endblock %}
+
+            <footer>
+                <span>© PVZ Manager — умное управление пунктами выдачи</span>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Bootstrap JS (для компонентов, но в основном для совместимости) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        (function() {
+            // ---- 1. Активный пункт меню (подсветка текущего URL) - строгий, современный ----
+            const currentPath = window.location.pathname;
+            const allNavLinks = document.querySelectorAll('.sidebar-link');
+
+            // Функция для определения соответствия ссылки текущему маршруту
+            function getLinkMatch(link) {
+                const href = link.getAttribute('href');
+                if (!href) return false;
+                // обрабатываем относительные ссылки типа /dashboard, /employees и тд
+                try {
+                    const url = new URL(href, window.location.origin);
+                    // сравниваем путь, игнорируя параметры
+                    return url.pathname === currentPath;
+                } catch(e) {
+                    return href === currentPath;
+                }
+            }
+
+            let activeFound = false;
+            allNavLinks.forEach(link => {
+                link.classList.remove('active');
+                if (getLinkMatch(link)) {
+                    link.classList.add('active');
+                    activeFound = true;
+                }
+            });
+            // если ни один не подошел, попробуем проверить частичное совпадение (для дашборда)
+            if (!activeFound && (currentPath === '/' || currentPath === '')) {
+                const dashboardLink = document.querySelector('.sidebar-link[href*="dashboard"]');
+                if (dashboardLink) dashboardLink.classList.add('active');
+            }
+
+            // 2. Мобильное меню: открытие / закрытие сайдбара + оверлей
+            const sidebar = document.getElementById('mainSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const menuToggle = document.getElementById('mobileMenuToggle');
+
+            function closeSidebar() {
+                if (sidebar) sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('active');
+                // убираем overflow блокировку
+                document.body.style.overflow = '';
+            }
+
+            function openSidebar() {
+                if (sidebar) sidebar.classList.add('open');
+                if (overlay) overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            if (menuToggle) {
+                menuToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (sidebar.classList.contains('open')) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
+                });
+            }
+
+            // Закрыть по клику на оверлей
+            if (overlay) {
+                overlay.addEventListener('click', () => {
+                    closeSidebar();
+                });
+            }
+
+            // Закрывать сайдбар при клике на ссылку внутри сайдбара на мобильных
+            const allSidebarLinks = document.querySelectorAll('.sidebar-link');
+            allSidebarLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    if (window.innerWidth <= 768) {
+                        // даем время на переход, но закрываем меню (без резких багов)
+                        setTimeout(() => {
+                            closeSidebar();
+                        }, 100);
+                    }
+                });
+            });
+
+            // При изменении размера окна, если ширина стала больше 768px и sidebar открыт в fixed-режиме,
+            // нужно убрать класс open и оверлей, чтобы вернуть стандартное отображение.
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 768) {
+                    if (sidebar && sidebar.classList.contains('open')) {
+                        sidebar.classList.remove('open');
+                    }
+                    if (overlay && overlay.classList.contains('active')) {
+                        overlay.classList.remove('active');
+                    }
+                    document.body.style.overflow = '';
+                }
+            });
+
+            // небольшая коррекция для предотвращения скролла body при открытом меню
+            const style = document.createElement('style');
+            style.textContent = `
+                body.menu-open {
+                    overflow: hidden;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // перехватываем флеш сообщения для плавного скролла к началу (опционально)
+            if (document.querySelector('.flashes li')) {
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 50);
+            }
+
+            // ----- Доп фишки для современного UI: hover на карточках (необязательно)-----
+            // Просто оставляем воздух. Также обеспечим работу активной ссылки при динамических переходах
+            // в случае использования turbolinks не требуется, но для чистоты обработки:
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList') {
+                        // Если контент подгружается, можно заново подсветить активную ссылку
+                        const newCurrentPath = window.location.pathname;
+                        document.querySelectorAll('.sidebar-link').forEach(link => {
+                            link.classList.remove('active');
+                            const href = link.getAttribute('href');
+                            if (href && (href === newCurrentPath || (href !== '#' && newCurrentPath.includes(href) && href !== '/'))) {
+                                if (href === newCurrentPath) link.classList.add('active');
+                                else if (newCurrentPath.startsWith(href) && href !== '/' && href.length > 1) link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            });
+            observer.observe(document.getElementById('mainContent') || document.body, { childList: true, subtree: true });
+        })();
+    </script>
+    <!-- Дополнительный скрипт для коррекции active после загрузки (при прямых переходах через ссылки) -->
+    <script>
+        (function fixActiveOnLoad() {
+            function highlightActive() {
+                const path = window.location.pathname;
+                const links = document.querySelectorAll('.sidebar-link');
+                let matched = false;
+                links.forEach(link => {
+                    link.classList.remove('active');
+                    const href = link.getAttribute('href');
+                    if (!href) return;
+                    // точное совпадение
+                    if (href === path) {
+                        link.classList.add('active');
+                        matched = true;
+                    } else if (path !== '/' && href !== '/' && path.startsWith(href) && href !== '#') {
+                        // для вложенных маршрутов типа /employees/...
+                        if (!matched && (href === '/employees' && path.startsWith('/employees')) ||
+                            (href === '/income' && path.startsWith('/income')) ||
+                            (href === '/expenses' && path.startsWith('/expenses')) ||
+                            (href === '/calendar' && path.startsWith('/calendar')) ||
+                            (href === '/upload_income' && path.startsWith('/upload_income')) ||
+                            (href === '/upload_wb' && path.startsWith('/upload_wb'))) {
+                            link.classList.add('active');
+                            matched = true;
+                        } else if (!matched && href !== '/' && path.startsWith(href)) {
+                            link.classList.add('active');
+                            matched = true;
+                        }
+                    }
+                });
+                // если по какой-то причине не засветился дашборд
+                if (!matched && (path === '/' || path === '/dashboard')) {
+                    const dash = document.querySelector('.sidebar-link[href*="dashboard"]');
+                    if (dash) dash.classList.add('active');
+                }
+            }
+            highlightActive();
+            // Дополнительно при клике на ссылку сработает, но это для подстраховки
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    setTimeout(highlightActive, 50);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

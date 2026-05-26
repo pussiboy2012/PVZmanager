@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Навигация по месяцам -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-gradient-primary text-white" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <a href="{{ url_for('dashboard', year=prev_year, month=prev_month) }}" class="btn btn-light">
+                        <i class="fas fa-chevron-left"></i> {{ prev_month_name }}
+                    </a>
+                    <h2 class="mb-0"><i class="fas fa-chart-line"></i> {{ month_name }} {{ year }}</h2>
+                    <a href="{{ url_for('dashboard', year=next_year, month=next_month) }}" class="btn btn-light">
+                        {{ next_month_name }} <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Карточки KPI (4 штук) -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-info h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Часов отработано</h6>
+                        <h2 class="mb-0">{{ total_hours }}</h2>
+                    </div>
+                    <i class="fas fa-clock fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-primary h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Доход, ₽</h6>
+                        <h2 class="mb-0">{{ income_total|round(0) }}</h2>
+                    </div>
+                    <i class="fas fa-ruble-sign fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-danger h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Расходы, ₽</h6>
+                        <h2 class="mb-0">{{ total_expenses|round(0) }}</h2>
+                    </div>
+                    <i class="fas fa-credit-card fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-warning h-100" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Чистая прибыль, ₽</h6>
+                        <h2 class="mb-0">{{ net_profit|round(0) }}</h2>
+                    </div>
+                    <i class="fas fa-chart-simple fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Графики: часы и доход+расходы -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-bar"></i> Часы по месяцам ({{ year }})</h5>
+                <canvas id="monthlyHoursChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-line"></i> Доход и расходы ({{ year }}), ₽</h5>
+                <canvas id="incomeExpenseChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Топ сотрудников / Топ услуг -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-trophy"></i> Топ сотрудников по часам</h5>
+                <div class="list-group">
+                    {% for name, hours in top_employees %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ name }}
+                        <span class="badge bg-primary rounded-pill">{{ hours }} ч</span>
+                    </div>
+                    {% else %}
+                    <div class="list-group-item">Нет данных</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-pie"></i> Топ услуг по доходу</h5>
+                <div class="list-group">
+                    {% for service, amount in top_services %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ service[:40] }}{% if service|length > 40 %}...{% endif %}
+                        <span class="badge bg-success rounded-pill">{{ amount|round(0) }} ₽</span>
+                    </div>
+                    {% else %}
+                    <div class="list-group-item">Нет данных</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Последние расходы (вместо последних смен) -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-receipt"></i> Последние расходы</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Категория</th>
+                                <th>Сумма, ₽</th>
+                                <th>Описание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for expense in recent_expenses %}
+                            <tr>
+                                <td>{{ expense.date.strftime('%d.%m.%Y') }}</td>
+                                <td>{{ expense.category }}</td>
+                                <td>{{ expense.amount|round(2) }}</td>
+                                <td>{{ expense.description or '—' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center">Нет расходов</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Данные из Jinja
+const months = {{ months|tojson }};
+const monthlyHours = {{ monthly_hours|tojson }};
+const monthlyIncome = {{ monthly_income|tojson }};
+const monthlyExpenses = {{ monthly_expenses|tojson }};
+
+// График часов (столбцы)
+new Chart(document.getElementById('monthlyHoursChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: months,
+        datasets: [{
+            label: 'Отработано часов',
+            data: monthlyHours,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: { y: { beginAtZero: true, title: { display: true, text: 'Часы' } } }
+    }
+});
+
+// Комбинированный график: доход (линия) + расходы (столбцы)
+new Chart(document.getElementById('incomeExpenseChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: months,
+        datasets: [
+            {
+                label: 'Расходы, ₽',
+                data: monthlyExpenses,
+                type: 'bar',
+                backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                borderColor: '#dc2626',
+                borderWidth: 1,
+                yAxisID: 'y'
+            },
+            {
+                label: 'Доход, ₽',
+                data: monthlyIncome,
+                type: 'line',
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                tension: 0.3,
+                fill: false,
+                pointRadius: 4,
+                pointBackgroundColor: '#059669',
+                borderWidth: 2,
+                yAxisID: 'y'
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Рубли' }
+            }
+        },
+        plugins: {
+            tooltip: { mode: 'index', intersect: false }
+        }
+    }
+});
+</script>
+{% endblock %}

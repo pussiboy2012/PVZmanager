@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <!-- Блок навигации: скрывается при печати -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap no-print">
+                    <a href="{{ url_for('salary_act', id=employee.id, year=prev_year, month=prev_month) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chevron-left"></i> {{ prev_month_name }}
+                    </a>
+                    <h3 class="mb-0"><i class="fas fa-file-invoice"></i> Акт выполненных работ</h3>
+                    <a href="{{ url_for('salary_act', id=employee.id, year=next_year, month=next_month) }}" class="btn btn-outline-primary">
+                        {{ next_month_name }} <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                <hr class="no-print">
+
+                <!-- ========== ОСНОВНОЕ СОДЕРЖИМОЕ АКТА (печатается) ========== -->
+                <div class="act-container">
+                    <!-- Реквизиты заказчика и заголовок -->
+                    <div class="act-header">
+                        <div class="customer-info">
+                            <strong>{{ customer.name }}</strong><br>
+                            ИНН: {{ customer.inn }}<br>
+                            Адрес: {{ customer.address }}
+                        </div>
+                        <div class="act-title">
+                            <h2>АКТ ВЫПОЛНЕННЫХ РАБОТ</h2>
+                            <p>№ {{ act_number }} от {{ act_date }}</p>
+                        </div>
+                    </div>
+
+                    <div class="employee-period">
+                        <p><strong>Исполнитель:</strong> {{ employee.name }}</p>
+                        <p><strong>Период:</strong> {{ month_name }} {{ year }} г.</p>
+                    </div>
+
+                    <!-- Таблица смен -->
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered act-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Часы</th>
+                                    <th>Ставка (₽/час)</th>
+                                    <th>Сумма по ставке</th>
+                                    <th>Бонус</th>
+                                    <th>Вычет</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for shift in shifts %}
+                                <tr>
+                                    <td>{{ shift.date.strftime('%d.%m.%Y') }}</td>
+                                    <td>{{ shift.hours or 0 }}</td>
+                                    <td>{{ shift.rate or 0 }}</td>
+                                    <td class="text-end">{{ ((shift.hours or 0) * (shift.rate or 0))|round(2) }}</td>
+                                    <td class="text-end">{{ shift.bonus or 0 }}</td>
+                                    <td class="text-end">{{ shift.deduction or 0 }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="8" class="text-center">Нет смен за этот месяц</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Итоги -->
+                    <div class="row mt-4">
+                        <div class="col-md-6 offset-md-6">
+                            <table class="table table-sm totals-table">
+                                <tr>
+                                    <th>Всего часов:</th>
+                                    <td class="text-end">{{ total_hours }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Начислено по ставке:</th>
+                                    <td class="text-end">{{ total_rate_amount }} ₽</td>
+                                </tr>
+                                <tr>
+                                    <th>Бонусы:</th>
+                                    <td class="text-end">{{ total_bonus }} ₽</td>
+                                </tr>
+                                <tr>
+                                    <th>Вычеты:</th>
+                                    <td class="text-end">{{ total_deduction }} ₽</td>
+                                </tr>
+                                <tr class="table-primary total-row">
+                                    <th>ИТОГО к выплате:</th>
+                                    <td class="text-end"><strong>{{ net }} ₽</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Подписи сторон -->
+                    <div class="signatures">
+                        <div class="signature-item">
+                            <p><strong>{{ customer.director_title }}</strong></p>
+                            <p>{{ customer.signatory_name }}</p>
+                            <div class="sign-place"></div>
+                            <p class="sign-label">(подпись, печать)</p>
+                        </div>
+                        <div class="signature-item">
+                            <p><strong>Исполнитель:</strong></p>
+                            <p>{{ employee.name }}</p>
+                            <div class="sign-place"></div>
+                            <p class="sign-label">(подпись)</p>
+                        </div>
+                    </div>
+
+                    <div class="act-footer small text-muted">
+                        <p>Акт составлен на основании фактически отработанного времени и действующих ставок.</p>
+                    </div>
+                </div>
+
+                <!-- Кнопки управления (скрываются при печати) -->
+                <div class="text-center mt-4 no-print">
+                    <button onclick="window.print()" class="btn btn-primary">
+                        <i class="fas fa-print"></i> Распечатать / Сохранить PDF
+                    </button>
+                    <a href="{{ url_for('employees_page') }}" class="btn btn-secondary">Назад к сотрудникам</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Стили для печати */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        .card, .card-body, .act-container, .act-container * {
+            visibility: visible;
+        }
+        .card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+            border: none;
+        }
+        .no-print, .no-print * {
+            display: none !important;
+        }
+        .act-table th, .act-table td {
+            border: 1px solid #000 !important;
+            padding: 6px !important;
+        }
+        .totals-table th, .totals-table td {
+            border: none;
+            background: white !important;
+        }
+        .total-row {
+            background-color: #f2f2f2 !important;
+            font-weight: bold;
+        }
+        .signatures {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .sign-place {
+            border-bottom: 1px solid #000;
+            width: 220px;
+            margin-top: 10px;
+        }
+        .sign-label {
+            font-size: 10px;
+            margin-top: 5px;
+        }
+        a, button {
+            text-decoration: none;
+            color: black;
+        }
+    }
+
+    /* Экранные стили для красоты */
+    .act-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .customer-info {
+        font-size: 0.9rem;
+    }
+    .act-title {
+        text-align: right;
+    }
+    .act-title h2 {
+        margin: 0;
+        font-size: 1.6rem;
+    }
+    .employee-period {
+        margin: 15px 0;
+        font-size: 1rem;
+    }
+    .act-table th, .act-table td {
+        vertical-align: middle;
+    }
+    .act-table td.text-end, .totals-table td.text-end {
+        text-align: right;
+    }
+    .totals-table {
+        width: 100%;
+        margin-bottom: 0;
+    }
+    .total-row th, .total-row td {
+        background-color: #e9ecef;
+    }
+    .signatures {
+        margin-top: 40px;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .signature-item {
+        min-width: 220px;
+    }
+    .sign-place {
+        border-bottom: 1px solid #000;
+        width: 220px;
+        margin-top: 10px;
+    }
+    .act-footer {
+        margin-top: 25px;
+        text-align: center;
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}

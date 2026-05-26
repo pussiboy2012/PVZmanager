@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chevron-left"></i> {{ prev_month_name }}
+                    </a>
+                    <h2 class="mb-0">{{ month_name }} {{ year }}</h2>
+                    <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" class="btn btn-outline-primary">
+                        {{ next_month_name }} <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div id="calendar-container">
+                    <div class="calendar-grid" id="calendar-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для редактирования смены -->
+<div class="modal fade" id="shiftModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Новая смена</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="shiftForm">
+                    <input type="hidden" id="shiftId" name="shiftId">
+                    <div class="mb-3">
+                        <label for="employeeSelect" class="form-label">Сотрудник</label>
+                        <select class="form-select" id="employeeSelect" required>
+                            <option value="">Выберите сотрудника</option>
+                            {% for emp in employees %}
+                            <option value="{{ emp.id }}">{{ emp.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="shiftDate" class="form-label">Дата</label>
+                        <input type="date" class="form-control" id="shiftDate" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="startTime" class="form-label">Начало</label>
+                            <input type="time" class="form-control" id="startTime">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="endTime" class="form-label">Конец</label>
+                            <input type="time" class="form-control" id="endTime">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="hours" class="form-label">Часы</label>
+                            <input type="number" step="0.5" class="form-control" id="hours" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="rate" class="form-label">Ставка</label>
+                            <input type="number" step="1" class="form-control" id="rate" value="130">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="bonus" class="form-label">Бонус</label>
+                            <input type="number" step="0.01" class="form-control" id="bonus" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="deduction" class="form-label">Вычет</label>
+                            <input type="number" step="0.01" class="form-control" id="deduction" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="status" checked>
+                        <label class="form-check-label" for="status">Была смена</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;">Удалить</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mb-3">
+    <a href="{{ url_for('export_shifts') }}" class="btn btn-success">
+        <i class="fas fa-file-excel"></i> Экспорт всех смен в Excel
+    </a>
+</div>
+
+<style>
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+.calendar-day {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    min-height: 120px;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.calendar-day:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.day-number {
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+    color: #495057;
+}
+.shift-badge {
+    background-color: #6366f1;
+    color: white;
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.shift-badge:hover {
+    background-color: #4f46e5;
+}
+.weekday-header {
+    text-align: center;
+    font-weight: bold;
+    padding: 8px;
+    background: #e9ecef;
+    border-radius: 6px;
+}
+</style>
+
+<script>
+// Получаем данные из шаблона
+const currentYear = {{ year }};
+const currentMonth = {{ month }};
+const employees = {{ employees|tojson }};
+
+let shifts = [];
+
+// Цвета для сотрудников
+function getEmployeeColor(employeeName) {
+    const colors = [
+            '#E6194B', // ярко-красный
+            '#4363D8', // синий
+            '#F58231', // оранжевый
+            '#911EB4', // фиолетовый
+            '#46F0F0', // циан
+            '#F032E6', // розовый
+            '#008080', // тёмно-бирюзовый
+            '#9A6324', // коричневый
+            '#800000', // бордовый
+            '#808000', // оливковый
+            '#000075', // тёмно-синий
+    ];
+    let hash = 0;
+    for (let i = 0; i < employeeName.length; i++) {
+        hash = ((hash * hash << 5) - hash) + employeeName.charCodeAt(i);
+        hash |= 0;
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
+// Загрузка смен с сервера
+async function loadShifts() {
+    const response = await fetch(`/api/shifts?year=${currentYear}&month=${currentMonth}`);
+    if (response.ok) {
+        shifts = await response.json();
+        renderCalendar();
+    } else {
+        console.error('Ошибка загрузки смен');
+    }
+}
+
+// Отображение календаря
+function renderCalendar() {
+    const firstDayOfMonth = new Date(currentYear, currentMonth - 1, 1);
+    const lastDayOfMonth = new Date(currentYear, currentMonth, 0);
+    const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = воскресенье
+    // Преобразуем в понедельник как начало недели (1 = понедельник)
+    let offset = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+
+    const grid = document.getElementById('calendar-grid');
+    grid.innerHTML = '';
+
+    // Заголовки дней недели (пн, вт, ср, чт, пт, сб, вс)
+    const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    weekdays.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'weekday-header';
+        header.textContent = day;
+        grid.appendChild(header);
+    });
+
+    // Пустые ячейки до начала месяца
+    for (let i = 0; i < offset; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day';
+        emptyCell.style.backgroundColor = '#f1f3f5';
+        grid.appendChild(emptyCell);
+    }
+
+    // Дни месяца
+    for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
+        const dayDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayShifts = shifts.filter(s => s.date === dayDate);
+
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day';
+        dayDiv.setAttribute('data-date', dayDate);
+
+        const dayNumber = document.createElement('div');
+        dayNumber.className = 'day-number';
+        dayNumber.textContent = d;
+        dayDiv.appendChild(dayNumber);
+
+        dayShifts.forEach(shift => {
+            const shiftDiv = document.createElement('div');
+            shiftDiv.className = 'shift-badge';
+            shiftDiv.style.backgroundColor = getEmployeeColor(shift.employee);
+            shiftDiv.textContent = `${shift.employee} ${shift.start_time || ''}${shift.start_time && shift.end_time ? '-' : ''}${shift.end_time || ''}`;
+            shiftDiv.title = `Часы: ${shift.hours}, Ставка: ${shift.rate}`;
+            shiftDiv.onclick = (e) => {
+                e.stopPropagation();
+                openEditModal(shift);
+            };
+            dayDiv.appendChild(shiftDiv);
+        });
+
+        dayDiv.onclick = () => openNewModal(dayDate);
+        grid.appendChild(dayDiv);
+    }
+}
+
+// Открыть модалку для новой смены
+function openNewModal(date) {
+    document.getElementById('modalTitle').textContent = 'Новая смена';
+    document.getElementById('shiftId').value = '';
+    document.getElementById('employeeSelect').value = '';
+    document.getElementById('shiftDate').value = date;
+    document.getElementById('startTime').value = '';
+    document.getElementById('endTime').value = '';
+    document.getElementById('hours').value = '0';
+    document.getElementById('rate').value = '0';
+    document.getElementById('bonus').value = '0';
+    document.getElementById('deduction').value = '0';
+    document.getElementById('status').checked = true;
+    document.getElementById('deleteBtn').style.display = 'none';
+    const modal = new bootstrap.Modal(document.getElementById('shiftModal'));
+    modal.show();
+}
+
+// Открыть модалку для редактирования
+function openEditModal(shift) {
+    document.getElementById('modalTitle').textContent = 'Редактировать смену';
+    document.getElementById('shiftId').value = shift.id;
+    document.getElementById('employeeSelect').value = shift.employee_id;
+    document.getElementById('shiftDate').value = shift.date;
+    document.getElementById('startTime').value = shift.start_time || '';
+    document.getElementById('endTime').value = shift.end_time || '';
+    document.getElementById('hours').value = shift.hours;
+    document.getElementById('rate').value = shift.rate;
+    document.getElementById('bonus').value = shift.bonus;
+    document.getElementById('deduction').value = shift.deduction;
+    document.getElementById('status').checked = shift.status;
+    document.getElementById('deleteBtn').style.display = 'inline-block';
+    const modal = new bootstrap.Modal(document.getElementById('shiftModal'));
+    modal.show();
+}
+
+// Сохранить смену
+document.getElementById('saveBtn').addEventListener('click', async () => {
+    const shiftId = document.getElementById('shiftId').value;
+    const employeeId = document.getElementById('employeeSelect').value;
+    const date = document.getElementById('shiftDate').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime = document.getElementById('endTime').value;
+    const hours = parseFloat(document.getElementById('hours').value);
+    const rate = parseFloat(document.getElementById('rate').value);
+    const bonus = parseFloat(document.getElementById('bonus').value);
+    const deduction = parseFloat(document.getElementById('deduction').value);
+    const status = document.getElementById('status').checked;
+
+    if (!employeeId) {
+        alert('Выберите сотрудника');
+        return;
+    }
+    if (!date) {
+        alert('Укажите дату');
+        return;
+    }
+
+    const payload = {
+        id: shiftId || null,
+        employee_id: parseInt(employeeId),
+        date: date,
+        start_time: startTime || null,
+        end_time: endTime || null,
+        hours: hours,
+        rate: rate,
+        bonus: bonus,
+        deduction: deduction,
+        status: status
+    };
+
+    try {
+        const response = await fetch('/api/shifts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
+            await loadShifts(); // перезагрузить смены
+        } else {
+            alert('Ошибка сохранения');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Ошибка сети');
+    }
+});
+
+// Удалить смену
+document.getElementById('deleteBtn').addEventListener('click', async () => {
+    const shiftId = document.getElementById('shiftId').value;
+    if (!shiftId) return;
+    if (!confirm('Удалить смену?')) return;
+
+    try {
+        const response = await fetch(`/api/shifts/${shiftId}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
+            await loadShifts();
+        } else {
+            alert('Ошибка удаления');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Ошибка сети');
+    }
+});
+
+// Загружаем данные при загрузке страницы
+document.addEventListener('DOMContentLoaded', loadShifts);
+</script>
+{% endblock %}

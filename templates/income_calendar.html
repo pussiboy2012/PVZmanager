@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-gradient-primary text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <a href="{{ url_for('income_calendar', year=prev_year, month=prev_month) }}" class="btn btn-light">
+                        <i class="fas fa-chevron-left"></i> {{ prev_month_name }}
+                    </a>
+                    <h2 class="mb-0"><i class="fas fa-chart-line"></i> Доходы: {{ month_name }} {{ year }}</h2>
+                    <a href="{{ url_for('income_calendar', year=next_year, month=next_month) }}" class="btn btn-light">
+                        {{ next_month_name }} <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                <div class="mt-3 d-flex justify-content-center">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-light active" data-source="all">Все источники</button>
+                        <button type="button" class="btn btn-light" data-source="yandex">Яндекс</button>
+                        <button type="button" class="btn btn-light" data-source="wildberries">Wildberries</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-pie"></i> Топ услуг</h5>
+                <canvas id="servicesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-calendar-week"></i> Динамика по дням</h5>
+                <canvas id="trendChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div id="calendar-container">
+                    <div class="calendar-grid" id="income-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка -->
+<div class="modal fade" id="dayModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-receipt"></i> Детали дохода за <span id="modalDate"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalDetails"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+.calendar-day {
+    background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    padding: 12px 8px;
+    min-height: 130px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
+}
+.calendar-day:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0,0,0,0.1);
+    background: white;
+}
+.day-number {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #2d3748;
+}
+.income-badge {
+    background: linear-gradient(95deg, #10b981, #059669);
+    color: white;
+    border-radius: 40px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-top: 8px;
+    display: inline-block;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.income-badge.negative {
+    background: linear-gradient(95deg, #ef4444, #dc2626);
+}
+.weekday-header {
+    text-align: center;
+    font-weight: 700;
+    padding: 12px;
+    background: #eef2ff;
+    border-radius: 12px;
+    color: #4f46e5;
+}
+.empty-day {
+    background: #f1f5f9;
+    opacity: 0.5;
+}
+.source-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 20px;
+    margin-left: 6px;
+}
+.source-yandex { background: #fc4a1a; color: white; }
+.source-wildberries { background: #7c3aed; color: white; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Данные от Flask
+const currentYear = {{ year }};
+const currentMonth = {{ month }};
+let currentSource = 'all';
+let incomeData = [];
+
+// Глобальные переменные для графиков
+let trendChartInstance = null;
+let pieChartInstance = null;
+
+// Загрузка данных с API
+async function loadIncome() {
+    const url = `/api/income?year=${currentYear}&month=${currentMonth}&source=${currentSource}`;
+    console.log('Загрузка:', url);
+    try {
+        const response = await fetch(url);
+        if (response.ok) {
+            incomeData = await response.json();
+            console.log('Данные получены:', incomeData);
+            renderCalendar();
+            renderCharts();
+        } else {
+            console.error('Ошибка загрузки');
+        }
+    } catch (err) {
+        console.error('Ошибка сети:', err);
+    }
+}
+
+// Календарь
+function renderCalendar() {
+    const firstDay = new Date(currentYear, currentMonth-1, 1);
+    const lastDay = new Date(currentYear, currentMonth, 0);
+    let startOffset = firstDay.getDay();
+    startOffset = startOffset === 0 ? 6 : startOffset - 1;
+
+    const grid = document.getElementById('income-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    weekdays.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'weekday-header';
+        header.textContent = day;
+        grid.appendChild(header);
+    });
+
+    for (let i = 0; i < startOffset; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day empty-day';
+        grid.appendChild(empty);
+    }
+
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+        const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dayIncome = incomeData.find(item => item.date === dateStr);
+        const total = dayIncome ? dayIncome.total : 0;
+        const totalAbs = Math.abs(total);
+        const sign = total < 0 ? '-' : '';
+
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day';
+        dayDiv.innerHTML = `
+            <div class="day-number">${d}</div>
+            ${total !== 0 ? `<div class="income-badge ${total < 0 ? 'negative' : ''}"><i class="fas fa-ruble-sign"></i> ${sign}${totalAbs.toFixed(2)}</div>` : '<div style="margin-top:8px; font-size:0.75rem; color:#94a3b8;">нет доходов</div>'}
+        `;
+        dayDiv.onclick = () => {
+            if (dayIncome && dayIncome.details && dayIncome.details.length) {
+                showDayDetails(dateStr, dayIncome.details);
+            } else {
+                showDayDetails(dateStr, []);
+            }
+        };
+        grid.appendChild(dayDiv);
+    }
+}
+
+// Модалка с деталями
+function showDayDetails(dateStr, details) {
+    document.getElementById('modalDate').innerText = dateStr;
+    const container = document.getElementById('modalDetails');
+    if (!details || details.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">За этот день нет транзакций</div>';
+    } else {
+        let html = `<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Источник</th><th>Услуга</th><th>Сумма</th><th>Заказ</th></tr></thead><tbody>`;
+        details.forEach(d => {
+            const sourceClass = d.source === 'yandex' ? 'source-yandex' : 'source-wildberries';
+            const sourceName = d.source === 'yandex' ? 'Яндекс' : 'WB';
+            html += `<tr>
+                        <td><span class="source-badge ${sourceClass}">${sourceName}</span></td>
+                        <td>${d.service}</td>
+                        <td>${d.cost.toFixed(2)} ₽</td>
+                        <td>${d.order || '—'}</td>
+                     </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    }
+    const modal = new bootstrap.Modal(document.getElementById('dayModal'));
+    modal.show();
+}
+
+// Графики
+function renderCharts() {
+    // Подготовка данных
+    const days = [];
+    const dailyTotals = [];
+    const serviceMap = new Map();
+
+    incomeData.forEach(day => {
+        days.push(day.date.slice(-2)); // число месяца
+        dailyTotals.push(day.total);
+        day.details.forEach(d => {
+            const key = `${d.source}:${d.service}`;
+            serviceMap.set(key, (serviceMap.get(key) || 0) + d.cost);
+        });
+    });
+
+    // Топ-5 услуг
+    const sorted = Array.from(serviceMap.entries()).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const serviceLabels = sorted.map(s => s[0]);
+    const serviceValues = sorted.map(s => s[1]);
+
+    // График динамики (линия)
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    if (trendChartInstance) trendChartInstance.destroy();
+    trendChartInstance = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: days,
+            datasets: [{
+                label: 'Доход за день (₽)',
+                data: dailyTotals,
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: '#059669'
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: true }
+    });
+
+    // Круговая диаграмма
+    const pieCtx = document.getElementById('servicesChart').getContext('2d');
+    if (pieChartInstance) pieChartInstance.destroy();
+    pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: serviceLabels,
+            datasets: [{
+                data: serviceValues,
+                backgroundColor: ['#6366f1', '#f59e0b', '#ef4444', '#14b8a6', '#8b5cf6']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+// Обработчики кнопок
+document.addEventListener('DOMContentLoaded', () => {
+    const btns = document.querySelectorAll('[data-source]');
+    btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentSource = btn.getAttribute('data-source');
+            loadIncome();
+        });
+    });
+    loadIncome();
+});
+</script>
+{% endblock %}
